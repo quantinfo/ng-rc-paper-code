@@ -13,14 +13,14 @@ https://www.delftstack.com/howto/matplotlib/how-to-hide-axis-text-ticks-and-or-t
 ## I just modified a few lines to include the constant term in the feature vector and in the Wout plot - Wendson.
 ## Also, now we are using RK23 for the Lorenz system integration
 """
-
+ 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 from scipy.optimize import fsolve
 
 dt=0.025
-warmup = 10.  # need to have warmup_pts >=1
+warmup = 5.  # need to have warmup_pts >=1
 traintime = 10.
 testtime=120.
 maxtime = warmup+traintime+testtime
@@ -173,36 +173,39 @@ axs1a[2].set_ylim(26.5+cte,-.5)
 #axs1a[2].set_xticks([-.08,0.,.08])
 axs1a[2].set_xlabel('$[W_{out}]_z$')
 axs1a[2].grid()
+##plt.savefig("test.pdf",bbox_inches='tight')
 
 ##### zoom in ####
 
-fig1a, axs1a = plt.subplots(1,3)
-fig1a.set_figheight(7.)
-fig1a.set_figwidth(6.)
+fig1b, axs1b = plt.subplots(1,3)
+fig1b.set_figheight(7.)
+fig1b.set_figwidth(6.)
 
-axs1a[0].barh(y_pos,W_out[0,:],color=colorx)
-axs1a[0].set_yticks(y_pos)
-axs1a[0].set_yticklabels(labels)
-axs1a[0].set_ylim(26.5+cte,-.5)
-axs1a[0].set_xlim(-.07,.07)
-axs1a[0].set_xticks([-0.05,0.,.05])
-axs1a[0].set_xlabel('$[W_{out}]_x$')
-axs1a[0].grid()
+axs1b[0].barh(y_pos,W_out[0,:],color=colorx)
+axs1b[0].set_yticks(y_pos)
+axs1b[0].set_yticklabels(labels)
+axs1b[0].set_ylim(26.5+cte,-.5)
+axs1b[0].set_xlim(-.2,.2)
+axs1b[0].set_xticks([-0.1,0.,.1])
+axs1b[0].set_xlabel('$[W_{out}]_x$')
+axs1b[0].grid()
 
-axs1a[1].barh(y_pos,W_out[1,:],color=colory)
-axs1a[1].set_yticks(y_pos)
-axs1a[1].axes.set_yticklabels([])
-axs1a[1].set_ylim(26.5+cte,-.5)
-axs1a[1].set_xlim(-.1,.1)
-axs1a[1].set_xticks([-0.07,0.,.07])
-axs1a[1].set_xlabel('$[W_{out}]_y$')
-axs1a[1].grid()
+axs1b[1].barh(y_pos,W_out[1,:],color=colory)
+axs1b[1].set_yticks(y_pos)
+axs1b[1].axes.set_yticklabels([])
+axs1b[1].set_ylim(26.5+cte,-.5)
+axs1b[1].set_xlim(-.3,.3)
+axs1b[1].set_xticks([-0.2,0.,.2])
+axs1b[1].set_xlabel('$[W_{out}]_y$')
+axs1b[1].grid()
 
-axs1a[2].barh(y_pos,W_out[2,:],color=colorz)
-axs1a[2].set_yticks(y_pos)
-axs1a[2].axes.set_yticklabels([]) #,rotation='vertical')
-axs1a[2].set_ylim(26.5+cte,-.5)
-axs1a[2].set_xlim(-.05,.05)
-axs1a[2].set_xticks([-0.04,0.,.04])
-axs1a[2].set_xlabel('$[W_{out}]_z$')
-axs1a[2].grid()
+axs1b[2].barh(y_pos,W_out[2,:],color=colorz)
+axs1b[2].set_yticks(y_pos)
+axs1b[2].axes.set_yticklabels([]) #,rotation='vertical')
+axs1b[2].set_ylim(26.5+cte,-.5)
+axs1b[2].set_xlim(-.07,.07)
+axs1b[2].set_xticks([-0.05,0.,.05])
+axs1b[2].set_xlabel('$[W_{out}]_z$')
+axs1b[2].grid()
+
+##plt.savefig("test_zoom.pdf", bbox_inches='tight')
