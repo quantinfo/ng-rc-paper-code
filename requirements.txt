@@ -1,0 +1,6 @@
+# minimum versions known to work
+numpy>=1.16
+scipy>=1.1
+
+# this is not so critical
+matplotlib>=2
