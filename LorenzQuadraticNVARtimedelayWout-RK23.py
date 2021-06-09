@@ -2,30 +2,34 @@
 """
 Created on Sat Feb 20 13:17:10 2021
 
-NVAR with time delays.  Don't be efficient for now.
-
-https://www.geeksforgeeks.org/how-to-create-different-subplot-sizes-in-matplotlib/
-https://matplotlib.org/stable/gallery/userdemo/demo_gridspec01.html#sphx-glr-gallery-userdemo-demo-gridspec01-py
-https://www.delftstack.com/howto/matplotlib/how-to-hide-axis-text-ticks-and-or-tick-labels-in-matplotlib/
+NVAR with time delays for Lorenz forecasting, W_out plots.
+Don't be efficient for now.
 
 @author: Dan
-
-## I just modified a few lines to include the constant term in the feature vector and in the Wout plot - Wendson.
-## Also, now we are using RK23 for the Lorenz system integration
 """
  
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from scipy.optimize import fsolve
 
+##
+## Parameters
+##
+
+# time step
 dt=0.025
-warmup = 5.  # need to have warmup_pts >=1
+# units of time to warm up NVAR. need to have warmup_pts >= 1
+warmup = 5.
+# units of time to train for
 traintime = 10.
+# units of time to test for
 testtime=120.
+# total time to run for
 maxtime = warmup+traintime+testtime
+# Lyapunov time of the Lorenz system
 lyaptime=1.104
 
+# discrete-time versions of the times defined above
 warmup_pts=round(warmup/dt)
 traintime_pts=round(traintime/dt)
 warmtrain_pts=warmup_pts+traintime_pts
@@ -33,21 +37,30 @@ testtime_pts=round(testtime/dt)
 maxtime_pts=round(maxtime/dt)
 lyaptime_pts=round(lyaptime/dt)
 
-# I added "cte" to include the constant term in the features vector - Wendson
-# choose cte = 1 to include the constant term in the features vector or cte = 0 otherwise. 
-cte = 1 # 
+# choose cte = 1 to include constant term, cte = 0 to exclude it
+cte = 1
 
-d = 3 # input_dimension = 3
-k = 2 # number of time delay daps
-dlin = k*d  # size of linear part of outvector
-dnonlin = int(dlin*(dlin+1)/2)  # size of nonlinear part of outvector
-dtot = dlin + dnonlin # size of total outvector
+# input dimension
+d = 3
+# number of time delay taps
+k = 2
+# size of linear part of feature vector
+dlin = k*d
+# size of nonlinear part of feature vector
+dnonlin = int(dlin*(dlin+1)/2)
+# total size of feature vector: linear + nonlinear
+dtot = dlin + dnonlin
 
-ridge_param = 2.5e-6 #0.12#0.08#10.
+# ridge parameter for regression
+ridge_param = 2.5e-6
 
-t_eval=np.linspace(0,maxtime,maxtime_pts+1) # need the +1 here to have a step of dt
+# t values for whole evaluation time
+# (need maxtime_pts + 1 to ensure a step of dt)
+t_eval=np.linspace(0,maxtime,maxtime_pts+1)
 
-# Lorenz '63
+##
+## Lorenz '63
+##
 
 sigma = 10
 beta = 8 / 3
@@ -66,46 +79,41 @@ def lorenz(t, y):
 
 lorenz_soln = solve_ivp(lorenz, (0, maxtime), [17.67715816276679, 12.931379185960404, 43.91404334248268] , t_eval=t_eval, method='RK23')
 
-lorenz_stats=np.zeros((3,3))
-for i in range(3):
-    lorenz_stats[0,i]=np.mean(lorenz_soln.y[i,warmtrain_pts:maxtime_pts])
-    lorenz_stats[1,i]=np.min(lorenz_soln.y[i,warmtrain_pts:maxtime_pts])
-    lorenz_stats[2,i]=np.max(lorenz_soln.y[i,warmtrain_pts:maxtime_pts])
+##
+## NVAR
+##
 
+# create an array to hold the linear part of the feature vector
 x = np.zeros((dlin,maxtime_pts))
 
+# fill in the linear part of the feature vector for all times
 for delay in range(k):
     for j in range(delay,maxtime_pts):
-        x[d*delay:d*(delay+1),j]=lorenz_soln.y[:,j-delay]   # don't subtract mean or normalize - goes to negative numbers for first k points
+        x[d*delay:d*(delay+1),j]=lorenz_soln.y[:,j-delay]
 
+# create an array to hold the full feature vector for training time
+# (use ones so the constant term is already 1)
 out_train = np.ones((dtot+ cte,traintime_pts))  
 
+# copy over the linear part (shift over by one to account for constant if needed)
 out_train[cte:dlin + cte,:]=x[:,warmup_pts-1:warmtrain_pts-1]
 
+# fill in the non-linear part
 cnt=0
 for row in range(dlin):
     for column in range(row,dlin):
-        # important - dlin here
+        # shift by one for constant if needed
         out_train[dlin+cnt + cte]=x[row,warmup_pts-1:warmtrain_pts-1]*x[column,warmup_pts-1:warmtrain_pts-1]
         cnt += 1
         
 
-W_out = np.zeros((d,dtot))
-
-# drop the first few points when training
-# x has the time delays too, so you need to take the first d components
-
-# use when subtracting linear part of propagator
+# ridge regression: train W_out to map out_train to Lorenz[t] - Lorenz[t - 1]
 W_out = (x[0:d,warmup_pts:warmtrain_pts]-x[0:d,warmup_pts-1:warmtrain_pts-1]) @ out_train[:,:].T @ np.linalg.pinv(out_train[:,:] @ out_train[:,:].T + ridge_param*np.identity(dtot+ cte))
 
+##
+## Plot
+##
 
-#W_out = (x[0:d,warmup_pts:warmtrain_pts]) @ out_train[:,:].T @ np.linalg.pinv(out_train[:,:] @ out_train[:,:].T + ridge_param*np.identity(dtot+ cte))
-
-
-# plot W_out for each component
-#plt.bar(range(dtot), W_out[0,:])
-#plt.show()
-#
 y_pos=np.arange(dtot + cte)
 if cte == 0:
     labels = ['x(t)','y(t)','z(t)','x(t-dt)','y(t-dt)','z(t-dt)']
@@ -173,7 +181,8 @@ axs1a[2].set_ylim(26.5+cte,-.5)
 #axs1a[2].set_xticks([-.08,0.,.08])
 axs1a[2].set_xlabel('$[W_{out}]_z$')
 axs1a[2].grid()
-##plt.savefig("test.pdf",bbox_inches='tight')
+
+plt.savefig('predict-lorenz-wout.png', bbox_inches='tight')
 
 ##### zoom in ####
 
@@ -208,4 +217,4 @@ axs1b[2].set_xticks([-0.05,0.,.05])
 axs1b[2].set_xlabel('$[W_{out}]_z$')
 axs1b[2].grid()
 
-##plt.savefig("test_zoom.pdf", bbox_inches='tight')
+plt.savefig('predict-lorenz-wout-zoom.png', bbox_inches='tight')
