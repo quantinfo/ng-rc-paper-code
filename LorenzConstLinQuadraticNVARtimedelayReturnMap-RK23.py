@@ -21,7 +21,7 @@ import matplotlib.patches
 # how far in to Lorenz solution to start
 start=5.
 # units of time to train for
-traintime=100.
+traintime=10.
 # ridge parameter for regression
 ridge_param = 2.5e-6
 
