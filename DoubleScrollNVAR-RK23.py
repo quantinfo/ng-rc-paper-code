@@ -84,8 +84,8 @@ def do_nvar(warmup=1.):
 
   doublescroll_soln = solve_ivp(doublescroll, (0, maxtime), [0.37926545,0.058339,-0.08167691] , t_eval=t_eval, method='RK23')
 
-  # total variance of the double-scroll solution
-  total_var=np.var(doublescroll_soln.y[0:d,:])
+  # total variance of the double-scroll solution, corrected July 15, 2021 DJG
+  total_var=np.var(doublescroll_soln.y[0,:])+np.var(doublescroll_soln.y[1,:])+np.var(doublescroll_soln.y[2,:])
 
   ##
   ## NVAR

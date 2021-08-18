@@ -12,43 +12,47 @@ May 18: fixed nrmse calculation, error of fixed points
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from scipy.optimize import fsolve
+import matplotlib.pyplot as plt
 
 ##
 ## Parameters
 ##
 
 # number of NRMSE trials
-npts=10
+npts=20
+npts_train=21
 # how far in to Lorenz solution to start
 start=5.
-# units of time to train for
-traintime=10.
+start_train=4.
+end_train=24.
+step_train=(end_train-start_train)/(npts_train-1)
+
+# time step
+dt=0.025
+    
 # ridge parameter for regression
 ridge_param = 2.5e-6
 
-# create a vector of warmup times to use, dividing space into
+# create a vector of warmup and train times to use, dividing space into
 # npts segments of length traintime
-warmup_v=np.arange(start,traintime*npts+start,traintime)
+traintime_v=np.arange(start_train,end_train+step_train,step_train)
+
+warmup_v=np.empty((npts_train,npts))
+for i in range(npts_train):
+    warmup_v[i,:]=np.arange(start,traintime_v[i]*npts+start,traintime_v[i])
+    
+testNRMSE=np.empty(npts_train)
+testNRMSEerr=np.empty(npts_train)
 
 # storage for results
-train_nrmse_v=np.zeros(npts)
 test_nrmse_v=np.zeros(npts)
-n_fp1_diff_v=np.zeros(npts)
-n_fp2_diff_v=np.zeros(npts)
-n_fp0_diff_v=np.zeros(npts)
-p_fp1_norm_v=np.zeros((npts, 3))
-p_fp2_norm_v=np.zeros((npts, 3))
-p_fp0_norm_v=np.zeros((npts, 3))
 
 # run a trial with the given warmup time
-def find_err(warmup):
+def find_err(warmup,traintime):
     ##
     ## More Parameters
     ##
 
-    # time step
-    dt=0.025
     # Lyapunov time of the Lorenz system
     lyaptime=1.104
     # units of time to test for
@@ -173,79 +177,28 @@ def find_err(warmup):
     # calculate NRMSE between true Lorenz and prediction for one Lyapunov time
     test_nrmse = np.sqrt(np.mean((x[0:d,warmtrain_pts-1:warmtrain_pts+lyaptime_pts-1]-x_test[0:d,0:lyaptime_pts])**2)/total_var)
     
-    # setup variables for predicted and true fixed points
-    t_fp0=np.zeros(d)
-    t_fp1=np.zeros(d)
-    t_fp2=np.zeros(d)
-    # true fixed point 0 is 0
-    # true fixed point 1 is at...
-    t_fp1[0]=np.sqrt(beta*(rho-1))
-    t_fp1[1]=np.sqrt(beta*(rho-1))
-    t_fp1[2]=rho-1
-    # true fixed point 2 is at...
-    t_fp2[0]=-t_fp1[0]
-    t_fp2[1]=-t_fp1[1]
-    t_fp2[2]=t_fp1[2]
-
-    # this function does a single step NVAR prediction for a trial fixed point
-    # and returns the difference between the input and prediction
-    # we can then solve func(p_fp) == 0 to find a fixed point p_fp
-    def func(p_fp):
-        # create a trial input feature vector
-        out_vec=np.ones(dtot)
-        # fill in the linear part
-        for ii in range(k):
-            # all past input is p_fp
-            out_vec[1+ii*d:1+(ii+1)*d]=p_fp[0:d]
-        # fill in the nonlinear part of the feature vector
-        cnt=0
-        for row in range(dlin):
-            for column in range(row,dlin):
-                out_vec[dlin+1+cnt]=out_vec[1+row]*out_vec[1+column]
-                cnt += 1
-        return W_out @ out_vec
-
-    # solve for the first fixed point and calculate distances
-    p_fp1 = fsolve(func, t_fp1)
-    n_fp1_diff=np.sqrt(np.sum((t_fp1-p_fp1)**2)/total_var)
-    p_fp1_norm = (t_fp1 - p_fp1) / np.sqrt(total_var)
-
-    # solve for second fixed point
-    p_fp2 = fsolve(func, t_fp2)
-    n_fp2_diff=np.sqrt(np.sum((t_fp2-p_fp2)**2)/total_var)
-    p_fp2_norm = (t_fp2 - p_fp2) / np.sqrt(total_var)
-
-    # solve for 0 fixed point
-    p_fp0=fsolve(func, t_fp0)
-    n_fp0_diff=np.sqrt(np.sum((t_fp0-p_fp0)**2)/total_var)
-    p_fp0_norm = (t_fp0 - p_fp0) / np.sqrt(total_var)
-
     # return our findings
-    return train_nrmse,test_nrmse,n_fp1_diff,n_fp2_diff,n_fp0_diff,p_fp1_norm,p_fp2_norm,p_fp0_norm
+    return test_nrmse 
 
+print('ridge regression parameter: '+str(ridge_param)+'\n')
 # run many trials and collect the results
-for i in range(npts):
-    train_nrmse_v[i],test_nrmse_v[i],n_fp1_diff_v[i],n_fp2_diff_v[i],n_fp0_diff_v[i],p_fp1_norm_v[i],p_fp2_norm_v[i],p_fp0_norm_v[i]=find_err(warmup_v[i])
+for j in range(npts_train):
+    for i in range(npts):
+        test_nrmse_v[i]=find_err(warmup_v[j,i],traintime_v[j])
+        
+    testNRMSE[j]=np.mean(test_nrmse_v)
+    testNRMSEerr[j]=np.std(test_nrmse_v)/np.sqrt(npts)
+    # output summaries
+   
+    print('test nrmse for traintime = '+str(traintime_v[j])+' mean, meanerr: '+str(testNRMSE[j])+' '+str(testNRMSEerr[j]))
 
-# output summaries
-print('\n ridge regression parameter: '+str(ridge_param)+'\n')
-print('mean, meanerr, train nrmse: '+str(np.mean(train_nrmse_v))+' '+str(np.std(train_nrmse_v)/np.sqrt(npts)))
-print('mean, meanerr, test nrmse: '+str(np.mean(test_nrmse_v))+' '+str(np.std(test_nrmse_v)/np.sqrt(npts)))
-
-# mean / err of (normalized L2 distance from true to predicted fixed point)
-print()
-print('mean, meanerr, fp1 nL2 distance: '+str(np.mean(n_fp1_diff_v))+' '+str(np.std(n_fp1_diff_v)/np.sqrt(npts)))
-print('mean, meanerr, fp2 nL2 distance: '+str(np.mean(n_fp2_diff_v))+' '+str(np.std(n_fp2_diff_v)/np.sqrt(npts)))
-print('mean, meanerr, fp0 nL2 distance: '+str(np.mean(n_fp0_diff_v))+' '+str(np.std(n_fp0_diff_v)/np.sqrt(npts)))
-
-# mean / err of (normalized difference between true and predicted fixed point)
-print()
-print('mean, meanerr, fp1', np.mean(p_fp1_norm_v, axis=0), np.std(p_fp1_norm_v, axis=0) / np.sqrt(npts))
-print('mean, meanerr, fp2', np.mean(p_fp2_norm_v, axis=0), np.std(p_fp2_norm_v, axis=0) / np.sqrt(npts))
-print('mean, meanerr, fp0', np.mean(p_fp0_norm_v, axis=0), np.std(p_fp0_norm_v, axis=0) / np.sqrt(npts))
-
-# normalized L2 distance between true and (mean of predicted fixed point)
-print()
-print('nL2 distance to mean, meanerr, fp1', np.sqrt(np.sum(np.mean(p_fp1_norm_v, axis=0) ** 2)), np.sqrt(np.sum(np.var(p_fp1_norm_v, axis=0)) / npts))
-print('nL2 distance to mean, meanerr, fp2', np.sqrt(np.sum(np.mean(p_fp2_norm_v, axis=0) ** 2)), np.sqrt(np.sum(np.var(p_fp2_norm_v, axis=0)) / npts))
-print('nL2 distance to mean, meanerr, fp0', np.sqrt(np.sum(np.mean(p_fp0_norm_v, axis=0) ** 2)), np.sqrt(np.sum(np.var(p_fp0_norm_v, axis=0)) / npts))
+plt.figure(figsize=(3.5,2.2))
+plt.errorbar(traintime_v/dt,testNRMSE,yerr=testNRMSEerr)
+plt.xlabel('training data set size')
+plt.xlim(100.,1000.)
+plt.xticks([200,400,600,800,1000])
+plt.ylabel('NRMSE')
+plt.ylim(0.,0.032)
+plt.savefig('NRMSEvsTrainingPoints.pdf',bbox_inches="tight")
+plt.savefig('NRMSEvsTrainingPoints.png',bbox_inches="tight")
+plt.show()

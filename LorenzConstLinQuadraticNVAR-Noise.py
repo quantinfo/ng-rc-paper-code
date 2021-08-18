@@ -10,6 +10,9 @@ NVAR with time delays for Lorenz forecasting.  Don't be efficient for now.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
+from scipy.interpolate import interp1d
+from numpy.random import default_rng
+#from random import random.seed,gauss
 
 ##
 ## Parameters
@@ -51,11 +54,26 @@ dnonlin = int(dlin*(dlin+1)/2)
 dtot = 1 + dlin + dnonlin
 
 # ridge parameter for regression
-ridge_param = 2.5e-6
+ridge_param = 1.4e-2
 
 # t values for whole evaluation time
 # (need maxtime_pts + 1 to ensure a step of dt)
 t_eval=np.linspace(0,maxtime,maxtime_pts+1)
+
+# generate Gaussian random numbers at step dt and then interpolate for integrator
+rng = np.random.default_rng(seed=1)
+
+# width of the Gaussian distribution
+width=1.
+
+xran=rng.normal(0.,width,maxtime_pts+1)
+yran=rng.normal(0.,width,maxtime_pts+1)
+zran=rng.normal(0.,width,maxtime_pts+1)
+xran_i = interp1d(t_eval,xran)
+yran_i = interp1d(t_eval,yran)
+zran_i = interp1d(t_eval,zran)
+
+lorenz_soln_nf=np.zeros((d,maxtime_pts+1))
 
 ##
 ## Lorenz '63
@@ -67,9 +85,19 @@ rho = 28
 
 def lorenz(t, y):
   
-  dy0 = sigma * (y[1] - y[0])
-  dy1 = y[0] * (rho - y[2]) - y[1]
-  dy2 = y[0] * y[1] - beta * y[2]
+  dy0 = sigma * (y[1] - y[0]) + xran_i(t)
+  dy1 = y[0] * (rho - y[2]) - y[1] + yran_i(t)
+  dy2 = y[0] * y[1] - beta * y[2] + zran_i(t)
+  
+  # since lorenz is 3-dimensional, dy/dt should be an array of 3 values
+  return [dy0, dy1, dy2]
+
+# No noise derivative
+def lorenz_nn(t, y):
+  
+  dy0 = sigma * (y[1] - y[0]) 
+  dy1 = y[0] * (rho - y[2]) - y[1] 
+  dy2 = y[0] * y[1] - beta * y[2] 
   
   # since lorenz is 3-dimensional, dy/dt should be an array of 3 values
   return [dy0, dy1, dy2]
@@ -78,9 +106,11 @@ def lorenz(t, y):
 
 lorenz_soln = solve_ivp(lorenz, (0, maxtime), [17.67715816276679, 12.931379185960404, 43.91404334248268] , t_eval=t_eval, method='RK23')
 
-# total variance of Lorenz solution
-total_var=np.var(lorenz_soln.y[0:d,:])
 
+# total variance of Lorenz solution
+total_var=np.var(lorenz_soln.y[0,:])+np.var(lorenz_soln.y[1,:])+np.var(lorenz_soln.y[2,:])
+
+print('standard deviation for x,y,z: '+str(np.std(lorenz_soln.y[0,:]))+' '+str(np.std(lorenz_soln.y[1,:]))+' '+str(np.std(lorenz_soln.y[2,:])))
 ##
 ## NVAR
 ##
@@ -141,8 +171,13 @@ for j in range(testtime_pts-1):
     # do a prediction
     x_test[0:d,j+1] = x_test[0:d,j]+W_out @ out_test[:]
 
+# no noise solution
+t_eval_nn=np.linspace(0,testtime,testtime_pts+1)
+lorenz_soln_nn = solve_ivp(lorenz, (0,testtime), x_test[0:d,0] , t_eval=t_eval_nn, method='RK23')
+
 # calculate NRMSE between true Lorenz and prediction for one Lyapunov time
-test_nrmse = np.sqrt(np.mean((x[0:d,warmtrain_pts-1:warmtrain_pts+lyaptime_pts-1]-x_test[0:d,0:lyaptime_pts])**2)/total_var)
+total_var_nn=np.var(lorenz_soln_nn.y[0,:])+np.var(lorenz_soln_nn.y[1,:])+np.var(lorenz_soln_nn.y[2,:])
+test_nrmse = np.sqrt(np.mean((lorenz_soln_nn.y[0:d,0:lyaptime_pts]-x_test[0:d,0:lyaptime_pts])**2)/total_var_nn)
 print('test nrmse: '+str(test_nrmse))
 
 ##
@@ -157,7 +192,7 @@ fig1 = plt.figure()
 fig1.set_figheight(8)
 fig1.set_figwidth(12)
 
-xlabel=[10,15,20,25,30]
+xlabel=[10,15,20,25,30,35,40]
 h=120
 w=100
 
@@ -171,17 +206,17 @@ axs6 = plt.subplot2grid(shape=(h,w), loc=(52, 50),colspan=42, rowspan=20)
 axs7 = plt.subplot2grid(shape=(h,w), loc=(75, 50), colspan=42, rowspan=20)
 axs8 = plt.subplot2grid(shape=(h,w), loc=(98, 50), colspan=42, rowspan=20)
 
-# true Lorenz attractor
+# true NOISY Lorenz attractor
 axs1.plot(x[0,warmtrain_pts:maxtime_pts],x[2,warmtrain_pts:maxtime_pts],linewidth=a_linewidth)
 axs1.set_xlabel('x')
 axs1.set_ylabel('z')
-axs1.set_title('ground truth')
+axs1.set_title('noise-driven ground truth')
 axs1.text(-.25,.92,'a)', ha='left', va='bottom',transform=axs1.transAxes)
 axs1.axes.set_xbound(-21,21)
 axs1.axes.set_ybound(2,48)
 
 # training phase x
-axs2.set_title('training phase') 
+axs2.set_title('noise-drive training phase') 
 axs2.plot(t_eval[warmup_pts:warmtrain_pts]-warmup,x[0,warmup_pts:warmtrain_pts],linewidth=t_linewidth)
 axs2.plot(t_eval[warmup_pts:warmtrain_pts]-warmup,x_predict[0,:],linewidth=t_linewidth, color='r')
 axs2.set_ylabel('x')
@@ -216,9 +251,9 @@ axs5.axes.set_xbound(-21,21)
 axs5.axes.set_ybound(2,48)
 
 # testing phase x
-axs6.set_title('testing phase')
+axs6.set_title('noise-free testing phase')
 axs6.set_xticks(xlabel)
-axs6.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,x[0,warmtrain_pts-1:warmtrain_pts+plottime_pts-1],linewidth=t_linewidth)
+axs6.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,lorenz_soln_nn.y[0,0:plottime_pts],linewidth=t_linewidth)
 axs6.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,x_test[0,0:plottime_pts],linewidth=t_linewidth,color='r')
 axs6.set_ylabel('x')
 axs6.text(-.155,0.87,'f)', ha='left', va='bottom',transform=axs6.transAxes)
@@ -227,7 +262,7 @@ axs6.axes.set_xbound(9.7,30.3)
 
 # testing phase y
 axs7.set_xticks(xlabel)
-axs7.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,x[1,warmtrain_pts-1:warmtrain_pts+plottime_pts-1],linewidth=t_linewidth)
+axs7.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,lorenz_soln_nn.y[1,0:plottime_pts],linewidth=t_linewidth)
 axs7.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,x_test[1,0:plottime_pts],linewidth=t_linewidth,color='r')
 axs7.set_ylabel('y')
 axs7.text(-.155,0.87,'g)', ha='left', va='bottom',transform=axs7.transAxes)
@@ -236,12 +271,12 @@ axs7.axes.set_xbound(9.7,30.3)
 
 # testing phase z
 axs8.set_xticks(xlabel)
-axs8.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,x[2,warmtrain_pts-1:warmtrain_pts+plottime_pts-1],linewidth=t_linewidth)
+axs8.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,lorenz_soln_nn.y[2,0:plottime_pts],linewidth=t_linewidth)
 axs8.plot(t_eval[warmtrain_pts-1:warmtrain_pts+plottime_pts-1]-warmup,x_test[2,0:plottime_pts],linewidth=t_linewidth,color='r')
 axs8.set_ylabel('z')
 axs8.text(-.155,0.87,'h)', ha='left', va='bottom',transform=axs8.transAxes)
 axs8.set_xlabel('time')
 axs8.axes.set_xbound(9.7,30.3)
 
-plt.savefig('predict-lorenz.png')
-plt.savefig('predict-lorenz.pdf')
+plt.savefig('predict-lorenz-noisy.png')
+plt.savefig('predict-lorenz-noisy.pdf')
