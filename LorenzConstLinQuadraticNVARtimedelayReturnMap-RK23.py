@@ -222,3 +222,6 @@ def return_map_spline(v):
     return np.stack([ex[:-1], ex[1:]], axis=-1)
 
 find_err(start, plotname='lorenz-rmap.png')
+find_err(start, plotname='lorenz-rmap.svg')
+find_err(start, plotname='lorenz-rmap.eps')
+find_err(start, plotname='lorenz-rmap.pdf')

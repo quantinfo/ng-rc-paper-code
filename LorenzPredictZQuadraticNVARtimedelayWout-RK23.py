@@ -171,3 +171,6 @@ axs1a[1].set_xlabel('$[W_{out}]_z$')
 axs1a[1].grid()
 
 plt.savefig('infer-lorenz-wout.png', bbox_inches='tight')
+plt.savefig('infer-lorenz-wout.svg', bbox_inches='tight')
+plt.savefig('infer-lorenz-wout.eps', bbox_inches='tight')
+plt.savefig('infer-lorenz-wout.pdf', bbox_inches='tight')

@@ -244,4 +244,6 @@ axs8.set_xlabel('time')
 axs8.axes.set_xbound(9.7,30.3)
 
 plt.savefig('predict-lorenz.png')
+plt.savefig('predict-lorenz.svg')
+plt.savefig('predict-lorenz.eps')
 plt.savefig('predict-lorenz.pdf')

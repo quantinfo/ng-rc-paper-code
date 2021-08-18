@@ -206,3 +206,6 @@ axs6.axes.set_xbound(traintime-.5,maxtime-warmup+.5)
 axs6.text(-.14,.9,'f)', ha='left', va='bottom',transform=axs6.transAxes)
 
 plt.savefig('infer-lorenz.png')
+plt.savefig('infer-lorenz.svg')
+plt.savefig('infer-lorenz.eps')
+plt.savefig('infer-lorenz.pdf')

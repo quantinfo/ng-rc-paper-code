@@ -316,6 +316,9 @@ def do_plot(dt, x, warmtrain_pts, maxtime_pts, t_eval, warmup_pts, warmup, x_pre
 # run one NVAR to plot the forecast
 do_plot(**do_nvar())
 plt.savefig('predict-dscroll.png')
+plt.savefig('predict-dscroll.svg')
+plt.savefig('predict-dscroll.eps')
+plt.savefig('predict-dscroll.pdf')
 
 # run many NVARs to calculate NRMSE and fixed points
 # number of trials
